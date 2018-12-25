@@ -8,18 +8,11 @@ const apllySubstituteAndMerge = (oldSym,newSym) => {
     return Object.assign({},oldSym,newSym);
 };
 
-export const varDeclarToSymbol = (ast,symbolValue)=>{
+export const varDeclarToSymbolGlobal = (ast,symbolValue)=>{
     let newSymbols={};
-    switch (ast.type){
-    case 'VariableDeclaration':
-        ast.declarations.forEach(elm => {
-            newSymbols[elm.id.name] = substitute(elm.init,symbolValue);
-        });
-        break;
-    case 'AssignmentExpression':
-        newSymbols[ast.left.name] = substitute(ast.right,symbolValue);
-        break;
-    }
+    ast.declarations.forEach(elm => {
+        newSymbols[elm.id.name] = substitute(elm.init,symbolValue);
+    });
     return apllySubstituteAndMerge(symbolValue,newSymbols);
 };
 
@@ -44,14 +37,14 @@ const getGlobalsAndFunc = (parsedCode)=>{
    
     for( let i = 0; i<bodyAst.length ; i++){
         if(bodyAst[i].type==='VariableDeclaration')
-            symbolValue = varDeclarToSymbol(bodyAst[i],symbolValue);
+            symbolValue = varDeclarToSymbolGlobal(bodyAst[i],symbolValue);
         if(bodyAst[i].type==='FunctionDeclaration'){
             parsedFunc = bodyAst[i];
             break;
         }
     }
     parsedFunc.params.forEach((e)=>{
-        symbolValue[e.name]=undefined;
+        symbolValue[e.name]=null;
     });
     
     return {symbolValue, parsedFunc};
@@ -63,7 +56,6 @@ const mainParser = (codeToParse,inputToParse) =>{
     let symbolValueInput = parseInputs(inputToParse, parsedFunc.params);
     let funcAfterSub = substitutionRec(parsedFunc,symbolValue,symbolValueInput);
     let generatedHtml = generateFC(funcAfterSub.ast);
-    console.log(generatedHtml);
     return generatedHtml;
 };
 

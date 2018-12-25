@@ -1,6 +1,31 @@
 import * as evalExpression from 'eval-expression';
 import {toString} from './buildStrings';
-import {varDeclarToSymbol} from './code-analyzer';
+
+export const varDeclarToSymbol = (ast,symbolValue)=>{
+    let newSymbols={};
+
+    ast.declarations.forEach(elm => 
+        newSymbols[elm.id.name] = substitute(elm.init,symbolValue)
+    );
+    newSymbols.backEnv = symbolValue;  
+    return newSymbols;
+};
+export const varAssignToSymbol = (ast,symbolValue)=>{
+    if(!symbolValue) return null;
+    if(symbolValue[ast.left.name]!==undefined){
+        symbolValue[ast.left.name] = substitute(ast.right,symbolValue);
+        return true;
+    }
+    return varAssignToSymbol(ast,symbolValue.backEnv);
+
+};
+export const getValSymbol = (name,symbolValue)=>{
+    if(!symbolValue) return null;
+    if(symbolValue[name])
+        return symbolValue[name];
+    return getValSymbol(name,symbolValue.backEnv);
+};
+
 export const substitutionRec=(parsedAst,symbolValue,input)=>{
     if(!parsedAst) return {ast:null,symbolValue};
     return subsFunc[parsedAst.type](parsedAst,symbolValue,input);  
@@ -17,17 +42,17 @@ const substitutionVariable = (parsedAst,symbolValue)=>{
     const body = parsedAst.declarations.map(elm =>
         ({type: 'assign', left: elm.id.name, right:toString(elm.init) }));
     return {ast:{type:'block',body},symbolValue:varDeclarToSymbol(parsedAst,symbolValue)};
-}
-const substitutionExpression = (parsedAst,symbolValue,input)=>{
+};
+const substitutionExpression = (parsedAst,symbolValue)=>{
     if(parsedAst.expression.type!=='AssignmentExpression')
         return {ast:null,symbolValue};
     else 
     {
         let expr = toString(parsedAst.expression.right);
-        let newSub = varDeclarToSymbol(parsedAst.expression,symbolValue);
+        varAssignToSymbol(parsedAst.expression,symbolValue);
         
         return { ast: {type: 'assign', left: parsedAst.expression.left.name, right: expr},
-            symbolValue: newSub };
+            symbolValue: symbolValue };
     }
 };
 const substitutionIf = (parsedAst,symbolValue,input)=>
@@ -98,7 +123,7 @@ const subUpdateExpression = (ast,substitution) => {
     let argument = substitute(ast.argument,substitution);  
     return Object.assign(ast,{argument});
 };*/
-const subIdentifier = (ast,substitution) => substitution[ast.name]===undefined? ast: substitute(substitution[ast.name],substitution);
+const subIdentifier = (ast,substitution) => getValSymbol(ast.name,substitution)===null? ast: substitute(getValSymbol(ast.name,substitution));
 
 const subLiteral= (ast) => ast;
 
@@ -112,7 +137,6 @@ const subFuncs =  { MemberExpression:subMemberExpression,
     StaticMemberExpression:subMemberExpression,
     UnaryExpression:subUnaryExpression,
     BinaryExpression: subBinaryExpression,
-    // UpdateExpression: subUpdateExpression,
     Literal : subLiteral,
     Identifier : subIdentifier,
     ArrayExpression: subArrayExpression};
